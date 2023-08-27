@@ -251,7 +251,6 @@ class TSModel:
             if not self.constrain_op is None:
                 self.sess.run(self.constrain_op)
 
-            
             losses.append(loss)
             accs.append(acc)
             preds.append(y_hat)
