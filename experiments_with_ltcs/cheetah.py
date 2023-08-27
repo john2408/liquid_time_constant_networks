@@ -4,8 +4,8 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Run on CPU
 
 import tensorflow as tf
-import ltc_model as ltc
-from ctrnn_model import CTRNN, NODE, CTGRU
+import experiments_with_ltcs.ltc_model as ltc
+from experiments_with_ltcs.models.ctrnn_model import CTRNN, NODE, CTGRU
 import argparse
 import datetime as dt
 

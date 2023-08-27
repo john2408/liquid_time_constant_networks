@@ -1,0 +1,8 @@
+*.txt
+*.data
+
+__pycache__
+
+experiments_with_ltcs/data/traffic/
+results
+experiments_with_ltcs/tf_sessions/

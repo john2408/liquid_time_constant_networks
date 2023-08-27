@@ -1,4 +1,7 @@
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+# Ref: https://stackoverflow.com/questions/37383812/tensorflow-module-object-has-no-attribute-placeholder
+
 import numpy as np
 import time
 import os

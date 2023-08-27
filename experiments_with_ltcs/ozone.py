@@ -3,9 +3,10 @@ import pandas as pd
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Run on CPU
 
-import tensorflow as tf
-import ltc_model as ltc
-from ctrnn_model import CTRNN, NODE, CTGRU
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+import models.ltc_model as ltc
+from models.ctrnn_model import CTRNN, NODE, CTGRU
 import argparse
 import datetime as dt
 

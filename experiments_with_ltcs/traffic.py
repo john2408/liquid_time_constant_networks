@@ -4,16 +4,18 @@ import os
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Run on CPU
 
-import tensorflow as tf
+#import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 
-import ltc_model as ltc
-from ctrnn_model import CTRNN, NODE, CTGRU
+import models.ltc_model as ltc
+from models.ctrnn_model import CTRNN, NODE, CTGRU
 import argparse
 import datetime as dt
 
 
 def load_trace():
-    df = pd.read_csv("data/traffic/Metro_Interstate_Traffic_Volume.csv")
+    df = pd.read_csv("./data/traffic/Metro_Interstate_Traffic_Volume.csv")
     holiday = (df["holiday"].values == None).astype(np.float32)
     temp = df["temp"].values.astype(np.float32)
     temp -= np.mean(temp)  # normalize temp by annual mean
