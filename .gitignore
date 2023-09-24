@@ -3,6 +3,7 @@
 
 __pycache__
 
+tf_sessions/
 experiments_with_ltcs/data/traffic/
 results
 experiments_with_ltcs/tf_sessions/

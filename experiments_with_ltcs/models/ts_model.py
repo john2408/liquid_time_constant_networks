@@ -10,59 +10,134 @@ tf.disable_v2_behavior()
 
 import models.ltc_model as ltc
 from models.ctrnn_model import CTRNN, NODE, CTGRU
+from typing import Tuple, Iterable 
 
 
 
 class TS_Data:
-    def __init__(self, x, y, seq_len=32):
+    
+    def __init__(self, 
+                 x: np.ndarray, 
+                 y: np.ndarray, 
+                 seq_len: int=32,
+                 seq_gap: int=4, 
+                 verbose: int=0, 
+                 val_ratio: float=0.1,
+                 test_ratio: float=0.15,
+                 rand_state: int = 123):
+        
+        self.verbose = verbose
+        self.seq_gap = seq_gap
+        self.val_ratio = val_ratio
+        self.test_ratio = test_ratio
+        self.rand_state = rand_state
+        
+        # Get input sequences
+        x_input_seq, y_input_seq = self.cut_in_sequences(x, y, seq_len, seq_gap, self.verbose)
 
-        train_x, train_y = self.cut_in_sequences(x, y, seq_len, inc=4)
+        self.x_input_seq = np.stack(x_input_seq, axis=0)
+        self.y_input_seq = np.stack(y_input_seq, axis=0)
+        
+        self.total_seqs = self.x_input_seq.shape[1]
+        
+        print("Total number of training sequences: {}".format(self.total_seqs))
+        
+        # Order of the sequences is lost, and therefore 
+        # for TS forecast, data lekeage problem appears if indeces are shuffled.
+        # TODO: fix it
+        permutation = np.random.RandomState(rand_state).permutation(self.total_seqs)
+        valid_size = int(self.val_ratio * self.total_seqs)
+        test_size = int(self.test_ratio * self.total_seqs)
 
-        self.train_x = np.stack(train_x, axis=0)
-        self.train_y = np.stack(train_y, axis=0)
-        total_seqs = self.train_x.shape[1]
-        print("Total number of training sequences: {}".format(total_seqs))
-        permutation = np.random.RandomState(23489).permutation(total_seqs)
-        valid_size = int(0.1 * total_seqs)
-        test_size = int(0.15 * total_seqs)
-
-        self.valid_x = self.train_x[:, permutation[:valid_size]]
-        self.valid_y = self.train_y[:, permutation[:valid_size]]
-        self.test_x = self.train_x[:, permutation[valid_size : valid_size + test_size]]
-        self.test_y = self.train_y[:, permutation[valid_size : valid_size + test_size]]
-        self.train_x = self.train_x[:, permutation[valid_size + test_size :]]
-        self.train_y = self.train_y[:, permutation[valid_size + test_size :]]
+        self.valid_x = self.x_input_seq[:, permutation[:valid_size]]
+        self.valid_y = self.y_input_seq[:, permutation[:valid_size]]
+        self.test_x = self.x_input_seq[:, permutation[valid_size : valid_size + test_size]]
+        self.test_y = self.y_input_seq[:, permutation[valid_size : valid_size + test_size]]
+        self.x_input_seq = self.x_input_seq[:, permutation[valid_size + test_size :]]
+        self.y_input_seq = self.y_input_seq[:, permutation[valid_size + test_size :]]
+        
 
     @staticmethod
-    def cut_in_sequences(x, y, seq_len, inc=1):
+    def cut_in_sequences(x: np.ndarray, 
+                         y: np.ndarray, 
+                         seq_len: int, 
+                         seq_gap: int=1, 
+                         verbose: int=0) -> Tuple[np.ndarray, np.ndarray]:
+        """Generates the input sequences for the model.
+        Variable "seq_gap" corresponds to the gap for selecting
+        the input sequences. E.g. if seq_gap=4, then the indices to 
+        use for cutting the sequences will be:
+        
+            start: 0 end: 6
+            start: 4 end: 10
+            start: 8 end: 14
+            start: 12 end: 18
+            ...
+        Output array is ()
 
+        Args:
+            x (np.ndarray): input features
+            y (np.ndarray): target variable
+            seq_len (int): sequence length for training
+            seq_gap (int, optional): Gap for selecting the sequences
+                    .Defaults to 1
+
+        Returns:
+            Tuple[np.ndarray, np.ndarray]: 
+                x_input_seq -> size: (seq_len, x.shape[0]/step_gap, x.shape[1]) 
+                y_input_seq -> size: (seq_len, y.shape[0]/step_gap)
+                
+                total_seqs = x.shape[0]/step_gap 
+                num_features = x.shape[1]
+        """
         sequences_x = []
         sequences_y = []
 
-        for s in range(0, x.shape[0] - seq_len, inc):
+        for s in range(0, x.shape[0] - seq_len, seq_gap):
             start = s
             end = start + seq_len
+            
+            if verbose > 0:
+                print("start:", s, "end:", end)
+                
             sequences_x.append(x[start:end])
             sequences_y.append(y[start:end])
 
         return np.stack(sequences_x, axis=1), np.stack(sequences_y, axis=1)
 
         
-    def iterate_train(self, batch_size=16):
-        total_seqs = self.train_x.shape[1]
-        permutation = np.random.permutation(total_seqs)
-        total_batches = total_seqs // batch_size
+    def iterate_train(self, 
+                      batch_size:int = 16
+                      ):
+        """Iterable to generate the training batches.
+        
+
+        Args:
+            batch_size (int, optional): Defaults to 16.
+
+        Yields:
+            Iterator[Iterable[np.ndarray, np.ndarray]]: 
+                batch_x: (seq_len, batch_size, num_features)
+                batch_y: (seq_len, batch_size)
+            
+        """
+        permutation = np.random.permutation(self.total_seqs)
+        total_batches = self.total_seqs // batch_size
 
         for i in range(total_batches):
             start = i * batch_size
             end = start + batch_size
-            batch_x = self.train_x[:, permutation[start:end]]
-            batch_y = self.train_y[:, permutation[start:end]]
+            batch_x = self.x_input_seq[:, permutation[start:end]]
+            batch_y = self.y_input_seq[:, permutation[start:end]]
             yield (batch_x, batch_y)
 
 
 class TSModel:
-    def __init__(self, model_type, model_size, learning_rate=0.001):
+    def __init__(self, 
+                 model_type: str, 
+                 model_size: int, 
+                 learning_rate : float=0.001,
+                 batch_size : int = 16):
         self.model_type = model_type
         self.constrain_op = None
         self.x = tf.placeholder(dtype=tf.float32, shape=[None, None, 7])
@@ -180,7 +255,7 @@ class TSModel:
 
             losses = []
             accs = []
-            for batch_x, batch_y in gesture_data.iterate_train(batch_size=16):
+            for batch_x, batch_y in gesture_data.iterate_train(self.batch_size):
                 acc, loss, _ = self.sess.run(
                     [self.accuracy, self.loss, self.train_step],
                     {self.x: batch_x, self.target_y: batch_y},
@@ -243,7 +318,7 @@ class TSModel:
         losses = []
         accs = []
         preds = []
-        for batch_x, batch_y in gesture_data.iterate_train(batch_size=16):
+        for batch_x, batch_y in gesture_data.iterate_train(self.batch_size):
             acc, loss, y_hat = self.sess.run(
                 [self.accuracy, self.loss, self.y],
                 {self.x: batch_x, self.target_y: batch_y},
@@ -255,7 +330,7 @@ class TSModel:
             accs.append(acc)
             preds.append(y_hat)
             
-            print("Input data ", batch_x)
-            print("y prediction ", y_hat)
-            break
+            #print("Input data ", batch_x)
+            #print("y prediction ", y_hat)
+        return preds     
     
